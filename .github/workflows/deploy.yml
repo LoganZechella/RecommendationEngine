@@ -1,0 +1,43 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@master
+        with:
+          version: 'latest'
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker
+
+      - name: Build Docker image
+        run: |
+          docker build -t gcr.io/turing-course-354213/recommendation-engine:latest .
+
+      - name: Push Docker image to Container Registry
+        run: |
+          docker push gcr.io/turing-course-354213/recommendation-engine:latest
+
+      - name: Deploy to GKE
+        env:
+          PROJECT_ID: turing-course-354213
+          CLUSTER_NAME: recommendation-engine-cluster
+          DEPLOYMENT_NAME: recommendation-engine
+          CONTAINER_IMAGE: gcr.io/turing-course-354213/recommendation-engine:latest
+        run: |
+          gcloud container clusters get-credentials $CLUSTER_NAME --region us-east1
+          kubectl set image deployment/$DEPLOYMENT_NAME $DEPLOYMENT_NAME=$CONTAINER_IMAGE -n default
